@@ -1,0 +1,5 @@
+economy-sim.py is a simple simulation of an economy. This is a functional, but incomplete ongoing revision of an earlier simulation. The earlier simulation treated producers and workers as instances of custom classes; this approach was intuitive, but not good for scaling beyond a handful of producers. This revised simulation treats producers, workers and owners as entries in nested dictionaries, which is more easily scalable while retaining intuition. A sequence of actions are found at the end, and demonstrated when the file is executed.
+
+Two custom modules are included:
+- MONEY.py: Defines the MONEY, ACCOUNT(MONEY) and COMMODITY classes to express money, accounts and commodities as class instances, with custom dunder methods to express how they interact. It also contains a function value_to_money which converts value (measured in hours) to money (measured in some currency).
+- PRINT_REGISTRY.py: Custom function that prints a tree in the console showing all elements of the economy and how they relate.

@@ -9,12 +9,12 @@ Fix:
 
 '''
 
-workday: float = vtm(8.) #8 h workday expressed in money
+workday: float = vtm(8.) # 8 h workday expressed in money
 
-class ECONOMY: #economy
+class ECONOMY: # For collecting all items and actors in a nested dict structure
     def __init__(self,
                  money_value: float):
-        self.REG = {} #registry
+        self.REG = {} # Registry
         
 def add_owner(E: ECONOMY,
               owner: str,
@@ -39,8 +39,8 @@ def add_product(E: ECONOMY,
 
     if product not in E.REG[owner_label]:
         free_workers = recipe["inputs"]["workers"] - inventory["inputs"]["workers"]
-        wage = vtm(4.) #NB: currently assuming a wage of 4 h upon instantiation. Should be made arbitrary
-        money_workers = MONEY(0.) #inventory["inputs"]["workers"][0] * wage
+        wage = vtm(4.) # NB: Currently assuming a wage of 4 h upon instantiation. Should be made arbitrary.
+        money_workers = MONEY(0.)
         E.REG[owner_label][product] = {"label": product,
                                  "recipe": recipe,
                                  "inventory": inventory,
@@ -50,19 +50,13 @@ def add_product(E: ECONOMY,
                                  "owner": owner_label,
                                  "workers": {"money": money_workers,
                                              "number": free_workers,
-                                             # "labor": workday.amount * free_workers,
                                              "wage": wage,
                                              "inventory": {}}}
-        
-    # if f"all_{product}" in E.REG:
-    #     E.REG[f"all_{product}"].append(E.REG[owner_label][product])
-    # else:
-    #     E.REG[f"all_{product}"] = [E.REG[owner_label][product]]
     
     return E.REG[owner_label][product]
 
 def set_unit_price(product: dict) -> None:
-    #NB: implement logic to determine profit rate. E.g., tendency to increase profit rate until sale revenue begins to decline.
+    # NB: Implement logic to determine profit rate. E.g., tendency to increase profit rate until revenue begins to decline.
     product["inventory"]["output"].unit_value = product["productionCost"] * (1. + product["profitRate"]) / product["inventory"]["output"].amount
     product["recipe"]["output"].unit_value = product["productionCost"] * (1. + product["profitRate"]) / product["inventory"]["output"].amount
 
@@ -77,17 +71,17 @@ def produce(E: ECONOMY,
     labor = inputs["workers"]
     paid_wage = labor.value
     
-    if any([i < j for i,j in zip(stocks.values(), materials.values())]): #wait if not enough material for cycle
+    if any([i < j for i,j in zip(stocks.values(), materials.values())]): # Wait if not enough material for production cycle
         print(f"Not enough material for owner {product['owner']} to produce {product['label']}.")
         return
     
-    if inventory["workers"] < labor: #wait if not enough labor for cycle
+    if inventory["workers"] < labor: # Wait if not enough labor for production cycle
         print(f"Not enough labor for owner {product['owner']} to produce {product['label']}.")
         return
     
     material_cost = sum([units.amount * units.unit_value for units in stocks.values()], MONEY(0.))
     
-    production_cost = paid_wage + material_cost #NB: Value, not money
+    production_cost = paid_wage + material_cost
     
     for material in materials.values():
         stocks[material.category] -= material
@@ -102,9 +96,9 @@ def pay_wages(E: ECONOMY,
     producer = E.REG[product["owner"]]
     labor = product["recipe"]["inputs"]["workers"]
     workers = product["workers"]
-    payout = workers["wage"] * labor.amount #NB: assuming all labor paid at once, maybe change to piecemeal payments?
+    payout = workers["wage"] * labor.amount # NB: Assuming all labor paid at once, maybe change to piecemeal payments?
     
-    if producer["money"] < payout: #wait if not enough money to pay workers for one cycle
+    if producer["money"] < payout: # Wait if not enough money to pay workers for one production cycle
         print(f"Not enough money for producer {product['owner']} of product {product['label']} to pay workers.")
         return
     
@@ -122,11 +116,11 @@ def sell(E: ECONOMY,
     seller = E.REG[product["owner"]]
     price = units.value
     
-    product["productionCost"] *= (stock.amount - units.amount) / stock.amount #production cost of remaining stock
+    product["productionCost"] *= (stock.amount - units.amount) / stock.amount # Production cost of remaining stock
     product["inventory"]["output"] -= units
     product["balance"] += price
     
-    if "money" in buyer.keys(): #if worker or owner (for personal consumption, MOS)
+    if "money" in buyer.keys(): # If worker or owner (for personal consumption, MOS)
         try:
             inventory[prod] += units
         except:
@@ -137,11 +131,11 @@ def sell(E: ECONOMY,
         except: #if worker
             buyer["money"] -= price
 
-    else: #if producer (for productive consumption, MOP)
+    else: # If producer (for productive consumption, MOP)
         try:
             inventory["inputs"]["materials"][prod] += units
         except:
-            inventory["inputs"]["materials"][prod] = units #include value on rhs
+            inventory["inputs"]["materials"][prod] = units
         buyer["balance"] -= price
 
     if product["balance"] < MONEY(0.):
@@ -149,8 +143,8 @@ def sell(E: ECONOMY,
 
 def reproduce_labor(product: dict) -> None:
     workers = product["workers"]
-    for key, value in workers["inventory"].items(): #NB: currently assuming 1 item in the inventory is sufficient to reproduce 1 worker. Generalize later
-        units = int(value.amount) #floor to whole number when positive
+    for key, value in workers["inventory"].items(): # NB: Currently assuming 1 item in the inventory is sufficient to reproduce 1 worker. Generalize later
+        units = int(value.amount) # Floor to whole number when positive
         if units >= 1:
             workers["inventory"][key] -= units
             workers["number"] += units

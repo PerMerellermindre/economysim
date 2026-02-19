@@ -3,55 +3,47 @@ def print_registry(REG):
     print_dict(REG)
     
 def print_dict(dic: dict,
-               tail: str = ""):
-    try:
-        for key, value in dic.items():
-            if not isinstance(value, dict) and not (isinstance(value, list) and isinstance(value[0], dict)):
-                head = "\033[93m \033[4m" + str(value) + "\033[0m"
-            else:
-                head = ""
-            if key == list(dic.keys())[-1]:
-                print(tail + "└ " + str(key) + ":" + head)
-                print_dict(dic[key], tail + "  ")
-            else:
-                print(tail + "├ " + str(key) + ":" + head)
-                print_dict(dic[key], tail + "│ ")
-    except:
-        if isinstance(dic, list) and isinstance(dic[0], dict):
-            for idx, item in enumerate(dic):
-                if item == dic[-1]:
-                    print(tail + f"└ Product {idx + 1}:")
-                    print_dict(item, tail + "  ")
-                else:
-                    print(tail + f"├ Product {idx + 1}:")
-                    print_dict(item, tail + "│ ")
-        else: pass
-
-
+               tail: str = "",
+               seen: set[int, ...] = set(),
+               firstRun: bool = True) -> None:
     
-def print_dict_compact(dic: dict,
-                       tail: str = ""):
+    if firstRun:
+        if len(seen) != 0:
+            seen = set()
+        seen.add(id(dic)) # Overview of printed entries to prevent infinite recursion in case of self-references
+    
+    prettystr = lambda x: ("\033[93m\033[4m" + str(x) + "\033[0m")
+    
     try:
-        for key, value in dic.items():
-            head = ""
-            if not any([isinstance(item, dict) for item in value.values()]):
-                for subkey, subvalue in value.items():
-                    head += str(subkey) + ": \033[93m \033[4m" + str(subvalue) + "\033[0m, "
-            # else:
-            #     head = ""
+        for key in dic.keys():
+            item = dic[key] # Pointer to dic item value (distinct from value, which is a copy of the item value)
+            is_dict = isinstance(item, dict)
+            if not is_dict:
+                head = prettystr(item)
+            else:
+                if id(item) in seen:
+                    try:
+                        head = prettystr(f"{item['label']}") # Covers self-references to owners, producers and workers
+                    except:
+                        head = prettystr("{...}") # Catch-all
+                else:
+                    head = ""
             if key == list(dic.keys())[-1]:
                 print(tail + "└ " + str(key) + ": " + head)
-                print_dict(dic[key], tail + "  ")
+                if id(item) not in seen and is_dict:
+                    seen.add(id(item))
+                    print_dict(item, tail + "  ", seen, False)
             else:
                 print(tail + "├ " + str(key) + ": " + head)
-                print_dict(dic[key], tail + "│ ")
+                if id(item) not in seen and is_dict:
+                    seen.add(id(item))
+                    print_dict(item, tail + "│ ", seen, False)
     except:
-        if isinstance(dic, list) and isinstance(dic[0], dict):
-            for idx, item in enumerate(dic):
-                if item == dic[-1]:
-                    print(tail + f"└ Product {idx + 1}: ")
-                    print_dict(item, tail + "  ")
-                else:
-                    print(tail + f"├ Product {idx + 1}: ")
-                    print_dict(item, tail + "│ ")
-        else: pass
+        print("Error: Not a dictionary.")
+        return
+    
+if __name__ == "__main__":
+    A = {'O1': {'label': 'O1', 'money': 50, 'balance': 0.0, 'inventory': {}, 'A': {'label': 'A', 'owner': {...}, 'balance': 0, 'profitRate': 0.15, 'recipe': {'inputs': {'materials': {'B': 1}, 'workers': 1}, 'output': 3}, 'inventory': {'inputs': {'materials': {'B': 1}, 'workers': 1}, 'output': 0}, 'productionCost': 0, 'workers': {'label': 'WA', 'product': {...}, 'money': 0.0, 'number': 0, 'wage': 4.0, 'inventory': {}}}}}
+    A['O1']['A']['owner'] = A['O1']
+    A['O1']['A']['workers']['product'] = A['O1']['A']['recipe']
+    print_registry(A)

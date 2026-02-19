@@ -1,5 +1,5 @@
 class MONEY:
-    unit_value = 1 #unit value of money
+    unit_value = 1 # Unit value of money
     
     def __init__(self,
                  amount: float):

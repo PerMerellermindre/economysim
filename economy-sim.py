@@ -11,7 +11,7 @@ Fix:
 
 workday: float = vtm(8.) # 8 h workday expressed in money
 
-class ECONOMY: # For collecting all items and actors in a nested dict structure
+class ECONOMY: # Registry to keep track of items and actors in the economy
     def __init__(self,
                  money_value: float):
         self.REG = {} # Registry
@@ -22,46 +22,47 @@ def add_owner(E: ECONOMY,
     E.REG[owner] = {"label": owner,
                     "money": ACCOUNT(money)}
     E.REG[owner]["balance"] = ACCOUNT(0., E.REG[owner]["money"])
+    E.REG[owner]["inventory"] = {}
     return E.REG[owner]
 
-def add_product(E: ECONOMY,
-                owner: dict,
+def add_product(owner: dict,
                 product: str,
                 recipe: dict[float, ...],
                 inventory: dict[list[float, float], ...],
                 productionCost: float,
                 balance: float,
                 profitRate: float) -> dict:
-    owner_label = owner["label"]
     
     if recipe.keys() != inventory.keys():
             raise Exception("Inventory and recipe keys must be the same.")
 
-    if product not in E.REG[owner_label]:
+    if product not in owner:
         free_workers = recipe["inputs"]["workers"] - inventory["inputs"]["workers"]
-        wage = vtm(4.) # NB: Currently assuming a wage of 4 h upon instantiation. Should be made arbitrary.
+        wage = vtm(4.) #NB: Currently assuming a wage of 4 h upon instantiation. Should be made arbitrary
         money_workers = MONEY(0.)
-        E.REG[owner_label][product] = {"label": product,
-                                 "recipe": recipe,
-                                 "inventory": inventory,
-                                 "productionCost": MONEY(productionCost),
-                                 "balance": ACCOUNT(balance, owner["balance"]),
-                                 "profitRate": profitRate,
-                                 "owner": owner_label,
-                                 "workers": {"money": money_workers,
-                                             "number": free_workers,
-                                             "wage": wage,
-                                             "inventory": {}}}
+        owner[product] = {"label": product,
+                          "owner": owner,
+                          "balance": ACCOUNT(balance, owner["balance"]),
+                          "profitRate": profitRate,
+                          "recipe": recipe,
+                          "inventory": inventory,
+                          "productionCost": MONEY(productionCost),
+                          "workers": {"label": f"W{product}",
+                                      "product": {},
+                                      "money": money_workers,
+                                      "number": free_workers,
+                                      "wage": wage,
+                                      "inventory": {}}}
+        owner[product]["workers"]["product"] = owner[product]
     
-    return E.REG[owner_label][product]
+    return (owner[product], owner[product]["workers"])
 
 def set_unit_price(product: dict) -> None:
-    # NB: Implement logic to determine profit rate. E.g., tendency to increase profit rate until revenue begins to decline.
+    #NB: Implement logic to determine profit rate. E.g., tendency to increase profit rate until sale revenue begins to decline.
     product["inventory"]["output"].unit_value = product["productionCost"] * (1. + product["profitRate"]) / product["inventory"]["output"].amount
     product["recipe"]["output"].unit_value = product["productionCost"] * (1. + product["profitRate"]) / product["inventory"]["output"].amount
 
-def produce(E: ECONOMY,
-            product: dict) -> None:
+def produce(product: dict) -> None:
     
     inputs = product["recipe"]["inputs"]
     inventory = product["inventory"]["inputs"]
@@ -80,40 +81,37 @@ def produce(E: ECONOMY,
         return
     
     material_cost = sum([units.amount * units.unit_value for units in stocks.values()], MONEY(0.))
-    
     production_cost = paid_wage + material_cost
     
     for material in materials.values():
         stocks[material.category] -= material
+        
     inventory["workers"] -= labor
-
     product["productionCost"] += production_cost
     product["inventory"]["output"] += output
     set_unit_price(product)
     
-def pay_wages(E: ECONOMY,
-              product: dict) -> None:
-    producer = E.REG[product["owner"]]
-    labor = product["recipe"]["inputs"]["workers"]
+def pay_wages(product: dict) -> None:
+    owner = product["owner"]
     workers = product["workers"]
-    payout = workers["wage"] * labor.amount # NB: Assuming all labor paid at once, maybe change to piecemeal payments?
+    labor = product["recipe"]["inputs"]["workers"]
+    payout = workers["wage"] * labor.amount #NB: Assuming all labor paid at once, maybe change to piecemeal payments?
     
-    if producer["money"] < payout: # Wait if not enough money to pay workers for one production cycle
-        print(f"Not enough money for producer {product['owner']} of product {product['label']} to pay workers.")
+    if owner["money"] < payout: # Wait if not enough money to pay workers for one production cycle
+        print(f"Not enough money for producer {owner['label']} of product {product['label']} to pay workers.")
         return
     
     workers["money"] += payout
     product["balance"] -= payout
 
-def sell(E: ECONOMY,
-         product: dict,
+def sell(product: dict,
          buyer: dict,
          units_amount: float) -> None:
     stock = product["inventory"]["output"]
     units = COMMODITY(stock.category, units_amount, stock.unit_value)
     inventory = buyer["inventory"]
     prod = product["label"]
-    seller = E.REG[product["owner"]]
+    seller = product["owner"]
     price = units.value
     
     product["productionCost"] *= (stock.amount - units.amount) / stock.amount # Production cost of remaining stock
@@ -143,16 +141,33 @@ def sell(E: ECONOMY,
 
 def reproduce_labor(product: dict) -> None:
     workers = product["workers"]
-    for key, value in workers["inventory"].items(): # NB: Currently assuming 1 item in the inventory is sufficient to reproduce 1 worker. Generalize later
+    inventory = workers["inventory"]
+    for key, value in inventory.items(): #NB: Currently assuming 1 item in the inventory is sufficient to reproduce 1 worker. Generalize later
         units = int(value.amount) # Floor to whole number when positive
         if units >= 1:
-            workers["inventory"][key] -= units
+            inventory[key] -= units
             workers["number"] += units
             break
         else:
             print(f"No MOS for reproduction for workers of product {product['label']} ({product['owner']}).")
-        
 
+def luxury_consumption(consumer: dict,
+                       consume_all: bool = True,
+                       *units: tuple[COMMODITY, ...]) -> None:
+    inventory = consumer["inventory"]
+    if consume_all:
+        for key in inventory: inventory[key].amount = 0.
+    else:
+        for item in units:
+            try:
+                if item.amount > inventory[item.category].amount:
+                    inventory[item.category] -= item
+                else:
+                    inventory[item.category] = 0.
+                    print(f"Not enough {item.category} in inventory; inventory set to 0.")
+            except:
+                print(f"{item.category} not found in inventory.")
+            
 if __name__ == "__main__":
     E = ECONOMY(1)
     pr(E.REG)
@@ -162,7 +177,7 @@ if __name__ == "__main__":
     O3 = add_owner(E, "O3", 50)
     pr(E.REG)
     print("\nAdd products")
-    A = add_product(E, O1, "A", {"inputs":
+    A, WA = add_product(O1, "A", {"inputs":
                                  {"materials":
                                   {"B": COMMODITY("B", 1, 16)},
                                   "workers": COMMODITY("workers", 1, 4)},
@@ -172,7 +187,7 @@ if __name__ == "__main__":
                                  {"B": COMMODITY("B", 1, 16)},
                                   "workers": COMMODITY("workers", 1, 4)},
                                  "output": COMMODITY("A", 0, 0.)}, 0, 0, 0.15)
-    B = add_product(E, O2, "B", {"inputs":
+    B, WB = add_product(O2, "B", {"inputs":
                                  {"materials":
                                   {"A": COMMODITY("A", 1, 8.)},
                                   "workers": COMMODITY("workers", 1, 4)},
@@ -182,7 +197,7 @@ if __name__ == "__main__":
                                  {"A": COMMODITY("A", 0, 8.)},
                                   "workers": COMMODITY("workers", 1, 4)},
                                  "output": COMMODITY("B", 0, 0.)}, 0, 0, 0.15)
-    V = add_product(E, O3, "V", {"inputs":
+    V, WV = add_product(O3, "V", {"inputs":
                                  {"materials":
                                   {"A": COMMODITY("A", 2, 8.)},
                                   "workers": COMMODITY("workers", 2, 4)},
@@ -194,36 +209,46 @@ if __name__ == "__main__":
                                  "output": COMMODITY("V", 0, 0.)}, 0, 0, 0.15)
     pr(E.REG)
     print("\nProduce A")
-    produce(E, A)
+    produce(A)
     # pr(E.REG)
     print("\nPay workers A")
-    pay_wages(E, A)
+    pay_wages(A)
     # pr(E.REG)
     print("\nSell A to O2")
-    sell(E, A, B, 1)
+    sell(A, B, 1)
     # pr(E.REG)
     print("\nProduce B")
-    produce(E, B)
+    produce(B)
     # pr(E.REG)
     print("\nPay workers B")
-    pay_wages(E, B)
+    pay_wages(B)
     # pr(E.REG)
     print("\nSell A to O3")
-    sell(E, A, V, 2)
+    sell(A, V, 2)
     # pr(E.REG)
     print("\nProduce V")
-    produce(E, V)
+    produce(V)
     # pr(E.REG)
     print("\nPay workers V")
-    pay_wages(E, V)
+    pay_wages(V)
     pr(E.REG)
     print("\nWorkers buy V")
-    sell(E, V, A["workers"], 1)
-    sell(E, V, B["workers"], 1)
-    sell(E, V, V["workers"], 2)
+    sell(V, A["workers"], 1)
+    sell(V, B["workers"], 1)
+    sell(V, V["workers"], 2)
     pr(E.REG)
     print("\nWorkers reproduce")
     reproduce_labor(A)
     reproduce_labor(B)
     reproduce_labor(V)
     pr(E.REG)
+    
+    # print("\nAdd owner")
+    # add_owner("O2", [50, 50])
+    # pr(E.REG)
+    # print("\nAdd product")
+    # add_product({"inputs": {"materials": {"B": [1, 16]}, "workers": [1, 4]}, "output": 2}, {"inputs": {"materials": {"B": [1, 16]}, "workers": [0, 4]}, "output": 1},"A","O2")
+    # pr(E.REG)
+    # print("\nChange A workers")
+    # E.REG["O1"]["A"]["inventory"]["workers"] = 1
+    # pr(E.REG)

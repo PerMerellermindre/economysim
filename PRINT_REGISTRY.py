@@ -1,5 +1,5 @@
 def print_registry(REG):
-    print("REGISTRY:")
+    print("ECONOMY:")
     print_dict(REG)
     
 def print_dict(dic: dict,
@@ -19,7 +19,9 @@ def print_dict(dic: dict,
             item = dic[key] # Pointer to dic item value (distinct from value, which is a copy of the item value)
             is_dict = isinstance(item, dict)
             if not is_dict:
-                head = prettystr(item)
+                if isinstance(item, list) and isinstance(item[0], dict): # Quick solution to deal with producer lists
+                    head = prettystr("[" + ", ".join([f"{prod['inventory']['output']}" for prod in item]) + "]") # Displays producers as their products
+                else: head = prettystr(item)
             else:
                 if id(item) in seen:
                     try:

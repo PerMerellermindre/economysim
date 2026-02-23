@@ -87,13 +87,15 @@ class ACCOUNT(MONEY):
     def __iadd__(self,
                 other: "MONEY"):
         if isinstance(other, MONEY):
-            p = self.parent
-            while True:
-                p.amount += other.amount
-                if p.parent is not None:
-                    p = p.parent
-                else: break
             self.amount += other.amount
+            try:
+                p = self.parent
+                while True:
+                    p.amount += other.amount
+                    if p.parent is not None:
+                        p = p.parent
+                    else: break
+            except: pass
             return self
         else:
             raise NotImplementedError()
@@ -101,13 +103,15 @@ class ACCOUNT(MONEY):
     def __isub__(self,
                 other: "MONEY") -> "MONEY":
         if isinstance(other, MONEY):
-            p = self.parent
-            while True:
-                p.amount -= other.amount
-                if p.parent is not None:
-                    p = p.parent
-                else: break
             self.amount -= other.amount
+            try:
+                p = self.parent
+                while True:
+                    p.amount -= other.amount
+                    if p.parent is not None:
+                        p = p.parent
+                    else: break
+            except: pass
             return self
         else:
             raise NotImplementedError()
@@ -175,9 +179,10 @@ class COMMODITY:
     def __mul__(self,
                 other: int | float) -> "COMMODITY":
         if not isinstance(other, (int, float)): raise NotImplementedError()
-        else: return COMMODITY(self.category,
-                               self.amount * other,
-                               self.unit_value)
+        else:
+            return COMMODITY(self.category,
+                             self.amount * other,
+                             self.unit_value)
     
     def __rmul__(self,
                 other: int | float) -> "COMMODITY":
@@ -186,9 +191,10 @@ class COMMODITY:
     def __truediv__(self,
                 other: int | float) -> "COMMODITY":
         if not isinstance(other, (int, float)): raise NotImplementedError()
-        else: return COMMODITY(self.category,
-                               self.amount / other,
-                               self.unit_value)
+        else:
+            return COMMODITY(self.category,
+                             self.amount / other,
+                             self.unit_value)
     
     def __eq__(self,
                 other: "COMMODITY") -> bool:
